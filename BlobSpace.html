@@ -1,0 +1,249 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="UTF-8">
+<meta name="description" content="Simple JavaScript animation using the canvas element.">
+<meta name="keywords" content="JavaScript, Animation, Canvas, balls">
+
+
+<title>BlobSpace Animation</title>
+</head>
+
+<body>
+
+<script>
+/* 	Blobspace
+	JavaScript animation
+	https://github.com/DutchGraa/
+	2014
+	*/
+
+// variables to change blopspace behaviour
+var nBlobs = 71;
+
+var maxSpeed = 3;
+var minSpeed = 0.3;
+
+var minSize = 3;
+var maxSize = 7;
+var maxEvolveSize = 35;
+
+var maxColor = 0xAAAAAA;
+var minColor = 0x444444;
+
+// global variables
+var totalBlobs;
+var canvas;
+var width;
+var height;
+	// hooray for multiple browsers
+var w = window,	d = document, e = d.documentElement, g = d.getElementsByTagName('body')[0], width = w.innerWidth || e.clientWidth || g.clientWidth, height = w.innerHeight|| e.clientHeight|| g.clientHeight;
+width=width/1.1;
+height=height/1.1;
+
+var count = 0;
+
+
+/* ========================= Mathish functions */
+
+// Get some value for directions and speed
+// If a is negative it return a negative number
+function getRandRange(a, speed) {
+	return Math.random() * a * speed;
+}
+
+// Return the difference between two numbers
+function diff(a,b){
+	return Math.abs(a-b);
+}
+
+// Get random speed
+function randSpeed() {
+	return (Math.random() * maxSpeed) + minSpeed;
+}
+
+
+/* ========================= Animation functions */
+
+// Clear and draw the 'next scene'
+function draw() {
+
+    // clear space
+    var context = canvas.getContext("2d");
+    context.clearRect(0, 0, width, height);
+    context.globalAlpha = 0.5;
+ 	
+ 	// move blobs
+	for (var i = 0; i < totalBlobs.length; i++) {
+		// move blob
+    	blob = totalBlobs[i];
+		blob.move();
+		
+		// draw blob
+		context.beginPath();
+		context.arc(blob.x,blob.y,blob.s,0,2*Math.PI);
+		context.fillStyle = blob.color;
+		context.fill();
+		context.stroke();
+	}
+
+	// don't run out of blobs
+	if (totalBlobs.length < nBlobs) genBlob();
+}
+
+// Start animation
+function animate() {
+    reqAnimFrame = window.mozRequestAnimationFrame||window.webkitRequestAnimationFrame||window.msRequestAnimationFrame||window.oRequestAnimationFrame;
+    reqAnimFrame(animate);
+    draw();
+}
+
+
+/* ========================= Blob related functions and Blob class */
+
+// for defining a Blob
+function Blob(x, y, size, speed, directions, color) {
+
+	    this.x = x;
+	    this.y = y;
+
+	    this.color = color;
+	    this.s = size;
+	    this.speed = speed;
+	    this.directions = directions;	
+}
+// To move the blob (blob checks for collision)
+Blob.prototype.move = function () {
+
+	// check collision with other ball
+	for (var i = 0; i < totalBlobs.length; i++) {
+		thatBlob = totalBlobs[i];
+
+		// same blob
+		if (thatBlob.x == this.x && thatBlob.y == this.y) continue;
+
+		// roughly estimate if we got a collision
+		// check difference coordinates
+		difx = diff(thatBlob.x,this.x);	
+		dify = diff(thatBlob.y,this.y);
+		difSizes = (this.s * 0.9) + (thatBlob.s * 0.9);
+		//if (difx < this.s*1.5 && dify < this.s*1.5) {
+		if (difx < difSizes && dify < difSizes) {
+			//console.log("collision "+difx+" "+dify+" "+this.s+" "+thatBlob.s);
+
+			// swallow bigger blobs, doesn't happen a lot
+			count += 1;
+			if (this.s < thatBlob.s && count % (nBlobs/3) == 0) {
+					// the new blob
+					if ((this.s + thatBlob.s) < maxEvolveSize) {
+					addBlob(this.x,this.y,this.s + thatBlob.s,this.speed,this.directions,this.color);
+					}
+					// remove old blobs
+					totalBlobs.splice(totalBlobs.indexOf(thatBlob),1);
+					totalBlobs.splice(totalBlobs.indexOf(this),1);
+
+					break;
+				}
+			// pop same blobs
+			if (this.s == thatBlob.s) {
+
+				// create 4 new half the size of previous blobs
+				av = this.s / 2;
+				// don't make too small blobs
+				if (av > 0.7) {
+					// shoot one right up
+					addBlob(this.x+difx,this.y-dify,av,randSpeed(),[1,-1],this.color);
+					// shoot one left up
+					addBlob(this.x-difx,this.y-dify,av,randSpeed(),[-1,-1],this.color);
+					// shoot one right down
+					addBlob(this.x+difx,this.y+dify,av,randSpeed(),[1,1],this.color);
+					// shoot one left down
+					addBlob(this.x-difx,this.y+dify,av,randSpeed(),[-1,1],this.color);
+				}
+				// remove old blobs
+				totalBlobs.splice(totalBlobs.indexOf(thatBlob),1);
+				totalBlobs.splice(totalBlobs.indexOf(this),1);
+
+				break;
+			}
+
+			// bounce off other blob in random direction
+			if (thatBlob.x > this.x) { 
+				this.directions[0] = getRandRange(-1, this.speed); 
+				thatBlob.directions[0] = getRandRange(1, this.speed); 
+			}
+			if (thatBlob.x < this.x) {
+				this.directions[0] = getRandRange(1, this.speed); 
+				thatBlob.directions[0] = getRandRange(-1, this.speed); 
+			}
+			if (thatBlob.y > this.y) {
+				this.directions[1] = getRandRange(-1, this.speed); 
+				thatBlob.directions[1] = getRandRange(1, this.speed); 
+			}
+			if (thatBlob.y < this.y) {
+				this.directions[1] = getRandRange(1, this.speed); 
+				thatBlob.directions[1] = getRandRange(-1, this.speed); 
+			}	
+		}
+	}
+
+	// collision with wall, change direction
+	if (this.x >= width - this.s) { this.directions[0] = getRandRange(-1, this.speed); }
+	if (this.x <= 0 + this.s)	{ this.directions[0] = getRandRange(1, this.speed); }
+
+	if (this.y >= height - this.s)	{ this.directions[1] = getRandRange(-1, this.speed); }
+	if (this.y <= 0 + this.s)	{ this.directions[1] = getRandRange(1, this.speed); }
+
+	// move ball
+	this.x += this.directions[0];
+	this.y += this.directions[1];
+}
+
+// Add new blob and save to blob array
+function addBlob(x, y, size, speed, directions, color) {
+	var newBlob = new Blob(x, y, size, speed, directions, color);
+	totalBlobs.push(newBlob);
+}
+
+// generate one blob
+function genBlob() {
+	randX = (Math.random() * width) + 1;
+	randY = (Math.random() * height) + 1;
+	// set some values
+	randSize = Math.floor((Math.random() * maxSize) + minSize);
+	rSpeed = randSpeed();
+	randDir = (Math.random() * 2) + -1;
+	// credits for this beauty: http://stackoverflow.com/questions/1484506/random-color-generator-in-javascript
+	randColor = '#'+(Math.random()*maxColor<<minColor).toString(16);
+	// add the random blob
+	addBlob(randX,randY,randSize,rSpeed,[randDir,randDir],randColor);
+}
+
+// generate more blobbies
+function genBlobs() {
+	totalBlobs = new Array();
+	for (var i = 0;i < nBlobs; i++) genBlob();
+}
+
+
+/* ========================= The program */
+
+function Run() {
+	// create blobspace
+	canvas = document.createElement('canvas');
+	canvas.id     = "blobSpace";
+	canvas.width  = width;
+	canvas.height = height;
+	canvas.style.border   = "3px solid";
+	canvas.style.backgroundColor = "rgba(225,255,255,0.5)";
+	document.body.appendChild(canvas);
+
+	genBlobs();
+
+	animate();
+}
+
+Run();
+
+
+</script></body></html>
